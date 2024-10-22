@@ -58,7 +58,7 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
                 fu：生成一些描述，环境，装备等
             '''
 
-            await bot_cmd.send(f"{messages}\n{chat(messages,max_tokens=400)}")
+            await bot_cmd.send(f"{messages}\n{chat("你要说：‘我才不是笨蛋呢！’或者使用自己的语言表达这个意思。不要复述下面的内容，只是告知你一下"+messages,max_tokens=400)}")
     else:
         await bot_cmd.send(bot_info())
 
