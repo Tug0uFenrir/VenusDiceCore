@@ -1,47 +1,6 @@
 import random
 import re
 
-'''
-def roll_dice(command):
-    """
-    这里是处理骰子roll点的函数，默认为1D100
-    """
-    # 骰子运算部分
-    dice_part = re.match(r'(\d*)[dD](\d+)', command)
-    if not dice_part:
-        return None, "Invalid dice command"
-
-    count = int(dice_part.group(1)) if dice_part.group(1) else 1
-    sides = int(dice_part.group(2))
-
-    dice_results = [random.randint(1, sides) for _ in range(count)]
-    dice_str = "[" + "]+[".join(map(str, dice_results)) + "]"
-    total = sum(dice_results)
-
-    formula = dice_str
-
-    operator_part = re.findall(r'[\+\-\*/]?\d+', command[dice_part.end():])
-    for op in operator_part:
-        symbol = op[0] if not op[0].isdigit() else '+'
-        number = int(op if symbol == '+' else op[1:])
-        if symbol == '+':
-            total += number
-            formula += f"+{number}"
-        elif symbol == '-':
-            total -= number
-            formula += f"-{number}"
-        elif symbol == '*':
-            total *= number
-            formula += f"*{number}"
-        elif symbol == '/':
-            total //= number
-            formula += f"/{number}"
-
-    formula += f"={total}"
-    return formula,total
-
-'''
-
 
 
 def roll_dice(command, advantage=0):

@@ -58,7 +58,7 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
                 fu：生成一些描述，环境，装备等
             '''
 
-            await bot_cmd.send(f"{messages}\n+{chat(messages,max_tokens=400)}")
+            await bot_cmd.send(f"{messages}\n{chat(messages,max_tokens=400)}")
     else:
         await bot_cmd.send(bot_info())
 
