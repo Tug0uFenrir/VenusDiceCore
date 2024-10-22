@@ -405,6 +405,15 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 FU规则代码簇-结束
 '''
 
+'''
+宝可梦规则代码簇-开始
+'''
+pokemon=on_command("pokemon")
+@pokemon.handle()
+async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    if location := args.extract_plain_text():
+        user_id = event.user_id
+
 
 
 '''
