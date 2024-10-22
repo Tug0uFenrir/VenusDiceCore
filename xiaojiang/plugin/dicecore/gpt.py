@@ -62,7 +62,7 @@ def chat(command,max_tokens):
     url = "https://api.chatanywhere.tech/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer sk-OAf0faDbRGK4mFcKN87Qvrf0juEXbthzZ2dPa3elZxDOWR9Y"
+        "Authorization": "Bearer "
     }
     data = {
         "model": "gpt-3.5-turbo",
