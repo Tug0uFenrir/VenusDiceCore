@@ -71,7 +71,7 @@ def roll_dice(command, advantage=0):
         total = sum(dice_results)
         formula = dice_str
 
-        operator_part = re.findall(r'[\+\-\*/]?\d+', command[dice_part.end():])
+        operator_part = re.findall(r'[+\-*/]?\d+', command[dice_part.end():])
         for op in operator_part:
             symbol = op[0] if not op[0].isdigit() else '+'
             number = int(op if symbol == '+' else op[1:])

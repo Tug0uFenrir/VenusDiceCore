@@ -57,13 +57,14 @@ s//2 <= t 困难成功
 s//4 <= t 极难成功
 
 '''
+url = "https://api.chatanywhere.tech/v1/chat/completions"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer "
+}
 
 def chat(command,max_tokens):
-    url = "https://api.chatanywhere.tech/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer "
-    }
+
     data = {
         "model": "gpt-3.5-turbo",
         "messages": [
@@ -80,10 +81,7 @@ def chat(command,max_tokens):
 
 def chat_fu_env_write(command,max_tokens):
     url = "https://api.chatanywhere.tech/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer sk-OAf0faDbRGK4mFcKN87Qvrf0juEXbthzZ2dPa3elZxDOWR9Y"
-    }
+
     data = {
         "model": "gpt-3.5-turbo",
         "messages": [
@@ -98,11 +96,6 @@ def chat_fu_env_write(command,max_tokens):
     return response.json()['choices'][0]['message']['content']
 
 def chat_coc_env_write(command,max_tokens):
-    url = "https://api.chatanywhere.tech/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer sk-OAf0faDbRGK4mFcKN87Qvrf0juEXbthzZ2dPa3elZxDOWR9Y"
-    }
     data = {
         "model": "gpt-3.5-turbo",
         "messages": [
@@ -326,12 +319,6 @@ def fu_chat(command,max_tokens,type):
 全能盾 2000z 你的物防和魔防都+1
 完美健康 2000z 你对所有状态效果免疫
     '''
-
-    url = "https://api.chatanywhere.tech/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer sk-OAf0faDbRGK4mFcKN87Qvrf0juEXbthzZ2dPa3elZxDOWR9Y"
-    }
     mask=''
     if type == "武器":
         mask=fu_weapon_mask

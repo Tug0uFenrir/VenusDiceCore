@@ -56,7 +56,7 @@ def insert_player(conn, qq_id, player_name, charter_name):
     conn.commit()
 
 
-def select_player(conn, qq_id, player_name):
+def select_player(conn, qq_id,):
     cursor = conn.cursor()
     cursor.execute('''
         SELECT player_character_id, player_character_name 

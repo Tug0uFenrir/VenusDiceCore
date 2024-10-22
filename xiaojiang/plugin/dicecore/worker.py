@@ -4,13 +4,12 @@ import httpx
 from io import BytesIO
 from nonebot.plugin import on_command
 from nonebot.adapters.onebot.v11 import MessageEvent
-from nonebot.params import CommandArg
 import pytesseract
 
 message_handler = on_command('ocr')
 
 @message_handler.handle()
-async def handle_message(event: MessageEvent, Message=CommandArg()):
+async def handle_message(event: MessageEvent):
     message = event.get_message()
     for msg in message:
         if msg.type == "image":

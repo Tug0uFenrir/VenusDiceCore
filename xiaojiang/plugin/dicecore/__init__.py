@@ -36,7 +36,31 @@ async def handle_set(event: MessageEvent, args: Message = CommandArg()):
 bot_cmd = on_command("bot")
 @bot_cmd.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
-    await bot_cmd.send(bot_info())
+    if location := args.extract_plain_text():
+        if location == "help":
+            messages='''
+            你打开了筱酱的大脑，鼓捣了一下她空空的大脑，找到了以下信息：
+            基础功能：
+            r（投骰子）：变种：rd
+            娱乐向功能：
+            jrrp：人品
+            gpt：和筱酱聊天
+            COC规则功能：
+            ra（rc）：技能鉴定
+                变种：
+                    rh：暗骰
+                    rap：惩罚骰
+                    rab：奖励骰
+            sc：san鉴定
+            coc：7th人物卡制成
+            coc_gpt：coc风格的描写   
+            FU规则功能：
+                fu：生成一些描述，环境，装备等
+            '''
+
+            await bot_cmd.send(f"{messages}\n+{chat(messages,max_tokens=400)}")
+    else:
+        await bot_cmd.send(bot_info())
 
 
 
