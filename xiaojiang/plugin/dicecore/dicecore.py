@@ -1,7 +1,7 @@
 import random
 import re
 
-
+'''
 def roll_dice(command):
     """
     这里是处理骰子roll点的函数，默认为1D100
@@ -40,6 +40,59 @@ def roll_dice(command):
     formula += f"={total}"
     return formula,total
 
+'''
+
+
+
+def roll_dice(command, advantage=0):
+    """
+    处理骰子roll点的函数，默认为1d100
+    """
+
+    # 骰子运算部分
+    dice_part = re.match(r'(\d*)[dD](\d+)', command)
+    if not dice_part:
+        return None, "Invalid dice command"
+
+    count = int(dice_part.group(1)) if dice_part.group(1) else 1
+    sides = int(dice_part.group(2))
+
+    dice_results = [random.randint(1, sides) for _ in range(count)]
+    dice_str = "[" + "]+[".join(map(str, dice_results)) + "]"
+
+    if count == 1 and sides == 100 and advantage != 0:
+        tens = [random.randint(0, 9) * 10 for _ in range(abs(advantage))]
+        best_ten = min(tens) if advantage > 0 else max(tens)
+        ones = random.randint(0, 9)
+        total = best_ten + ones
+        dice_str = f'{best_ten}[奖励投:{",".join(map(str, tens))}]' if advantage > 0 else f'{best_ten}[惩罚投:{",".join(map(str, tens))}]'
+
+    else:
+        total = sum(dice_results)
+        formula = dice_str
+
+        operator_part = re.findall(r'[\+\-\*/]?\d+', command[dice_part.end():])
+        for op in operator_part:
+            symbol = op[0] if not op[0].isdigit() else '+'
+            number = int(op if symbol == '+' else op[1:])
+
+            if symbol == '+':
+                total += number
+                formula += f"+{number}"
+            elif symbol == '-':
+                total -= number
+                formula += f"-{number}"
+            elif symbol == '*':
+                total *= number
+                formula += f"*{number}"
+            elif symbol == '/':
+                total //= number
+                formula += f"/{number}"
+
+        formula += f"={total}"
+        return formula, total
+
+    return f'{dice_str}+[{ones}]={total}', total
 
 
 def generate_coc_character():
@@ -61,7 +114,7 @@ def generate_coc_character():
     character['MP'] = character['POW'] // 5
     character['SAN'] = character['POW']
 
-    total_str_siz = character['STR'] + character['SIZ']
+    total_str_siz:int= int(character['STR']) + int(character['SIZ'])
     if total_str_siz <= 64:
         character['DB'] = '-2'
         character['Build'] = '-2'
@@ -91,6 +144,25 @@ def generate_coc_character():
         character['Build'] = '6'
 
     return character
+
+
+def sancheck(current_sanity, success_deduction, failure_deduction):
+    roll_result = roll_dice('1d100')[1]  # 投1D100 骰子
+    success = roll_result <= current_sanity  # 检查是否成功
+    if success:
+        if "d" in success_deduction or "D" in success_deduction:
+            deduction = roll_dice(success_deduction)[1]
+        else:
+            deduction = eval(success_deduction)
+    else:
+        if "d" in failure_deduction or "D" in failure_deduction:
+            deduction = roll_dice(failure_deduction)[1]
+        else:
+            deduction = eval(failure_deduction)
+    new_sanity = max(0, current_sanity - deduction)  # 确保不会出现负数的理智值
+    return roll_result, success, new_sanity, deduction
+
+
 
 def generate_multiple_characters(count=1):
     all_characters = [generate_coc_character() for _ in range(count)]

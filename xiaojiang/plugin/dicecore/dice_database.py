@@ -14,6 +14,21 @@ def connect_db():
         return conn
 
 
+def update_character_sanity(conn, qq_id, character_id, new_sanity):
+    cursor = conn.cursor()
+    skills = get_character_skills(conn, qq_id, character_id)
+
+    if skills:
+        skills = eval(skills)
+        skills['san'] = new_sanity
+        cursor.execute('''
+            UPDATE player_character
+            SET player_character_skills = %s
+            WHERE player_qq_id = %s AND player_character_id = %s
+        ''', (str(skills), str(qq_id), character_id))
+        conn.commit()
+
+
 def insert_player(conn, qq_id, player_name, charter_name):
     cursor = conn.cursor()
     # 检查玩家是否存在
