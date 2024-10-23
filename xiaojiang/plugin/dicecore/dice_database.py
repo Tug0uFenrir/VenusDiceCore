@@ -1,7 +1,7 @@
 import psycopg2
 
 def connect_db():
-    with open('plugin/database_config.ini','r') as f:
+    with open('database_config.ini','r') as f:
         a=f.readlines()[-1].replace('DATABASE=[','').replace(']','').split(',')
         conn=psycopg2.connect(
             dbname=a[0],

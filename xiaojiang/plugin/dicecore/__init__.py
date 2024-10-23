@@ -3,7 +3,8 @@ from nonebot.adapters import Message
 from nonebot.adapters.onebot.v11 import MessageEvent, GroupMessageEvent, PrivateMessageEvent
 from nonebot.params import CommandArg
 import re
-from .dicecore import roll_dice, generate_multiple_characters, bot_info, coc_skills_SYMONYS, generate_coc_character,sancheck
+from .dicecore import roll_dice, generate_multiple_characters, bot_info, coc_skills_SYMONYS, generate_coc_character, \
+    sancheck, generate_fu_character
 from .gpt import *
 from .dice_database import *
 
@@ -273,6 +274,7 @@ COC规则功能呢个代码簇-开始
 coc（人物制成）
 coc_gpt（coc风格gpt）
 sc（san鉴定）
+en（技能成长）
 '''
 coc_cmd = on_command("coc")
 @coc_cmd.handle()
@@ -363,6 +365,51 @@ async def handle_sancheck(event: MessageEvent, args: Message = CommandArg()):
     else:
         await sc_cmd.send(f"{user_name}阁下，命令格式不正确哦～请用 sc<成功后的损失>/<失败后的损失> 格式。")
 
+
+# en_cmd handler
+en_cmd = on_command("en")
+@en_cmd.handle()
+async def handle_en(event: MessageEvent, args: Message = CommandArg()):
+    user_name = event.sender.nickname
+    user_id = event.user_id
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+
+    conn = connect_db()
+    bound_char = get_bound_character(conn, user_id, group_id)
+    character_id = None
+    if bound_char:
+        character_id = bound_char[0]
+    else:
+        await en_cmd.send(f"{user_name}阁下，您尚未绑定角色卡")
+        return
+
+    location = args.extract_plain_text().strip()
+    skill_name = location
+
+    existing_skills_str = get_character_skills(conn, user_id, character_id)
+    existing_skills = eval(existing_skills_str) if existing_skills_str else {}
+
+    if skill_name not in existing_skills:
+        await en_cmd.send(f"{user_name}阁下，角色卡中未找到技能【{skill_name}】")
+        return
+
+    skill_value = existing_skills[skill_name]
+    en_roll = int(roll_dice('1d100')[1])
+
+    if en_roll > skill_value:
+        skill_increment = int(roll_dice('1d10')[1])
+        new_skill_value = skill_value + skill_increment
+        existing_skills[skill_name] = new_skill_value
+
+        # Update the skill in database
+        update_character_skills(conn, user_id, character_id, str(existing_skills))
+
+        await en_cmd.send(
+            f"{user_name}阁下，技能【{skill_name}】的鉴定成功！骰点: {en_roll} > {skill_value}，增加了{skill_increment}点，现在为{new_skill_value}点")
+    else:
+        await en_cmd.send(f"{user_name}阁下，技能【{skill_name}】的鉴定失败。骰点: {en_roll} ≤ {skill_value}，技能未增加")
+
+
 '''
 COC规则代码簇-结束
 '''
@@ -392,6 +439,31 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
             await fu_env.send(str(cmd))
             gpt_response = fu_chat(f"这是{cmd[2]}，描述：{cmd[3]}",8192,cmd[1])
             await fu_env.send(gpt_response)
+        if cmd[0] == 'g':
+            # 检查 g 后是否有数字
+            if len(cmd) > 1 and cmd[1].isdigit():
+                num_rolls = int(cmd[1])  # 获取数字
+                results = []  # 用于存储结果
+
+                for _ in range(num_rolls):  # 生成指定次数的角色
+                    character = generate_fu_character()
+                    results.append(f"你是来自{character['identity_detail'][0]}的"
+                                   f"{','.join(character['identity_adj'])}的"
+                                   f"{character['identity_core'][0]}与{character['identity_core'][1]}"
+                                   f"\n推荐的职业：{character["recommended_professions"]}"
+                                   f"\n推荐的骰子：{character["recommended_professions_dice_size"]}'''")
+
+                # 输出所有结果
+                await fu_env.send("最终幻想人物身份制成：\n"+"\n".join(results))
+            else:
+                # 只生成一次角色
+                character = generate_fu_character()
+                message=f'''最终幻想人物身份制成:\n
+                你是来自{character['identity_detail'][0]}的{'的'.join(character['identity_adj'])}的{character['identity_core'][0]}与{character['identity_core'][1]}
+                推荐的职业：{character["recommended_professions"]}
+                推荐的骰子：{character["recommended_professions_dice_size"]}'''
+                await fu_env.send(message)
+
     else:
         await fu_env.send('''
         fu指令使用教程：
@@ -399,6 +471,9 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
         fu 生成 此功能为生成随即稀有装备的指令。现在支持生成武器，防具，饰品[例：。fu 生成 武器 剑类型 这是一把村好剑]
             参数详细信息：
                 。fu 生成 [武器/防具/饰品/随机] [具体类型/随机] [物品描述（不要使用空格）]
+        fu g 此功为生成角色背景于推荐职业和职业相关骰子大小模板
+            详细信息：
+                fu g count 例如：。fu 5
         ''')
 
 '''
@@ -603,15 +678,13 @@ async def handle_st(event: MessageEvent, args: Message = CommandArg()):
                         if comp_key not in filtered_props:
                             filtered_props[comp_key] = value
 
-                props = '\n'.join([f'{k}：{v}' for k, v in filtered_props.items()])
+                props = ''.join([f'{k}：{v}' for k, v in filtered_props.items()])
                 await st.send(f"{user_name}阁下的所有属性如下：\n{props}")
             else:
                 if prop_name in SYNONYMS:
                     prop_name = SYNONYMS[prop_name]
-                if prop_name in properties and properties[prop_name] >= 20:
+                if prop_name in properties:
                     await st.send(f"{user_name}阁下，属性{prop_name}的值是：{properties[prop_name]}")
-                else:
-                    await st.send(f"{user_name}阁下，没有找到属性{prop_name}或者该属性值过低哦～")
     else:
         try:
             properties = get_character_skills(conn, user_id, character_id)
