@@ -17,28 +17,50 @@ bot(机器人信息与开关)
 jrrp（人品测试）
 gpt(gpt聊天)
 '''
-group_rules = {}
+def is_bot_enabled(group_id, conn):
+    group_id = str(group_id)
+    status = get_group_bot_status(conn, group_id)
+    return status.lower() == 'on'
+
+
 set_cmd = on_command("set")
 @set_cmd.handle()
 async def handle_set(event: MessageEvent, args: Message = CommandArg()):
     if location := args.extract_plain_text().strip().lower():
-        if location in ("coc", "fu", "pokemon","dnd"):
+        if location in ("coc", "fu", "pokemon", "dnd"):
             group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
             if group_id:
-                group_rules[group_id] = location
+                # 更新数据库中的规则
+                conn = connect_db()
+                update_group_rule(conn, group_id, location)
                 await set_cmd.send(f"已切换规则为 {location}")
             else:
                 await set_cmd.send("私聊中无法切换规则哦～")
         else:
-            await set_cmd.send("无效的规则，请输入 coc, fu 或 pkm")
-
-
+            await set_cmd.send("无效的规则，请输入 coc, fu, pokemon 或 dnd")
 
 bot_cmd = on_command("bot")
+
 @bot_cmd.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if not group_id:
+        await bot_cmd.send("私聊中无法执行此命令哦～")
+
     if location := args.extract_plain_text():
-        if location == "help":
+        if location == "status":
+            conn = connect_db()
+            status = get_group_bot_status(conn, group_id)
+            await bot_cmd.send(f"骰子在该群中的状态为：{status}")
+        elif location == "on":
+            conn = connect_db()
+            update_group_bot_status(conn, group_id, "on")
+            await bot_cmd.send("骰子功能已经开启～")
+        elif location == "off":
+            conn = connect_db()
+            update_group_bot_status(conn, group_id, "off")
+            await bot_cmd.send("骰子功能已经关闭～")
+        elif location == "help":
             messages='''
             你打开了筱酱的大脑，鼓捣了一下她空空的大脑，找到了以下信息：
             基础功能：
@@ -59,15 +81,24 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
                 fu：生成一些描述，环境，装备等
             '''
 
-            await bot_cmd.send(f"{messages}\n{chat("你要说：‘我才不是笨蛋呢！’或者使用自己的语言表达这个意思。不要复述下面的内容，只是告知你一下"+messages,max_tokens=400)}")
+        else:
+            await bot_cmd.send(f"无效的命令：{location}")
     else:
         await bot_cmd.send(bot_info())
+
+
 
 
 
 jrrp = on_command("jrrp")
 @jrrp.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     dice_response = str(roll_dice('1d100')[1])
     gpt_response = chat(f"{event.sender.nickname}阁下的当前运势是{dice_response}",890)
     await jrrp.send(f"{event.sender.nickname}阁下的当前运势是{dice_response}\n{gpt_response}")
@@ -77,6 +108,11 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 gpt_chat = on_command("gpt")
 @gpt_chat.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     if location := args.extract_plain_text():
         user_name = event.sender.nickname
         gpt_response = chat(location,800)
@@ -84,11 +120,6 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 
 '''
 机器人基础功能代码簇-结束
-功能：
-set（规则切换）
-bot(机器人信息与开关)
-jrrp（人品测试）
-gpt(gpt聊天)
 '''
 
 
@@ -103,6 +134,11 @@ ra(技能鉴定)
 roll_cmd = on_command("r", aliases={'r'})
 @roll_cmd.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if str(group_id) and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     if location := args.extract_plain_text():
         try:
             if location[0] == 'd':
@@ -144,6 +180,11 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 rh_cmd=on_command("rh")
 @rh_cmd.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     bot = get_bot()
     if location := args.extract_plain_text():
         if location[0] == 'd':
@@ -174,11 +215,16 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 skills_roll = on_command('ra', aliases={'rc'})
 @skills_roll.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
     group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
-    rule = group_rules.get(group_id, "coc")  # 默认使用 coc 规则
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    #rule = group_rules.get(group_id, "coc")  # 默认使用 coc 规则
+    rule=get_group_bot_rule(conn,group_id)
     if location := args.extract_plain_text():
         user_name = event.sender.nickname
-
         # 连接数据库并获取角色信息
         conn = connect_db()
         bound_char = get_bound_character(conn, event.user_id, group_id)
@@ -279,6 +325,11 @@ en（技能成长）
 coc_cmd = on_command("coc")
 @coc_cmd.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     user_id = event.user_id
     if location := args.extract_plain_text():
         if str(user_id) in ["815290790", "1803514767", "1904454183", "2019934270", "1945063708"]:
@@ -313,6 +364,11 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 coc_gpt_env=on_command("coc_gpt")
 @coc_gpt_env.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     if location := args.extract_plain_text():
         user_name = event.sender.nickname
         gpt_response = chat_coc_env_write(location,4095)
@@ -321,6 +377,11 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 sc_cmd = on_command("sc")
 @sc_cmd.handle()
 async def handle_sancheck(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     user_name = event.sender.nickname
     user_id = event.user_id
     conn = connect_db()
@@ -370,6 +431,11 @@ async def handle_sancheck(event: MessageEvent, args: Message = CommandArg()):
 en_cmd = on_command("en")
 @en_cmd.handle()
 async def handle_en(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     user_name = event.sender.nickname
     user_id = event.user_id
     group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
@@ -424,6 +490,11 @@ fu（文本生成/装备生成）
 fu_env=on_command("fu")
 @fu_env.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     if location := args.extract_plain_text():
         cmd = args.extract_plain_text().split(' ')
         cmd.append(' ')
@@ -486,6 +557,11 @@ FU规则代码簇-结束
 pokemon=on_command("pokemon")
 @pokemon.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     if location := args.extract_plain_text():
         user_id = event.user_id
 
@@ -500,6 +576,11 @@ pc（角色卡）
 pc = on_command("pc")
 @pc.handle()
 async def handle_func(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
     user_name = event.sender.nickname
     user_id = event.sender.user_id
     conn = connect_db()
@@ -518,7 +599,7 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
             await pc.send(f"{user_name}阁下，请提供角色名哦～")
             return
 
-        insert_player(conn, user_id, user_name, character_name)
+        insert_player(conn, user_id, user_name, character_name,get_group_bot_rule(conn,group_id))
         await pc.send(f"{user_name}阁下，角色卡 {character_name} 创建成功～")
 
     elif cmd == 'tag':
@@ -530,10 +611,11 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
             return
 
         existing_chars = select_group_players(conn, group_id, user_id)
+        group_rule=get_group_bot_rule(conn, group_id)
         for char in existing_chars:
             if char[1] == character_name:
                 # 找到了角色，进行绑定
-                update_bind_status(conn, user_id, group_id, char[0], '*')
+                update_bind_status(conn, user_id, group_id, char[0], '*',group_rule)
                 await pc.send(f"角色卡 {character_name} 已标记为当前群绑定卡啦～")
                 return
 
@@ -556,7 +638,8 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
 
         if character:
             skills = eval(character[2]) if character[2] else '无'
-            details = f"角色ID: {character[0]}\n角色名: {character[1]}\n技能: {skills}\n绑定群: {character[3] if character[3] else '无'}\n绑定状态: {character[4]}"
+            rule = character[5]
+            details = f"角色ID: {character[0]}\n角色名: {character[1]}\n技能: {skills}\n绑定群: {character[3] if character[3] else '无'}\n绑定状态: {character[4]}\n规则: <{rule}>"
             await pc.send(details)
         else:
             await pc.send(f"未找到角色 {args_text[1]} 的角色卡哦～")
@@ -575,7 +658,8 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
                     bind_status = "P"
                 else:
                     bind_status = "O"
-            structure += f"[{item[0]}]{item[1]}    {bind_status}\n"
+            rule = get_character_rule(conn, user_id, item[0])
+            structure += f"[{item[0]}]{item[1]} <{rule}>    {bind_status}\n"
         await pc.send(structure)
     elif cmd == 'del':
         character_name = rest_args.strip()
@@ -600,20 +684,22 @@ async def handle_func(event: MessageEvent, args: Message = CommandArg()):
         await pc.send(f"{user_name}阁下，不支持的指令哦～")
 
 
-
 st = on_command("st")
 @st.handle()
 async def handle_st(event: MessageEvent, args: Message = CommandArg()):
+    conn = connect_db()
+    group_id = event.group_id if isinstance(event, GroupMessageEvent) else None
+    if group_id and not is_bot_enabled(group_id, conn):
+        await st.send("当前群组的机器人功能已关闭。")
+        return
 
     user_name = event.sender.nickname
     user_id = event.sender.user_id
-    SYNONYMS = coc_skills_SYMONYS()
-    conn = connect_db()
+    rule = get_group_rule(conn, group_id)
 
     if isinstance(event, GroupMessageEvent):
         group_id = event.group_id
         bound_char = get_bound_character(conn, user_id, group_id)
-
         if not bound_char:
             await st.send(f"{user_name}阁下，您尚未新建角色卡，无法使用 st 功能哦～")
             return
@@ -622,11 +708,9 @@ async def handle_st(event: MessageEvent, args: Message = CommandArg()):
     elif isinstance(event, PrivateMessageEvent):
         group_id = None
         character_id = get_recent_private_character(conn, user_id)
-
         if not character_id:
             await st.send(f"{user_name}阁下，您尚未新建角色卡，无法使用 st 功能哦～")
             return
-
     else:
         await st.send(f"{user_name}阁下，暂时只支持群聊和私聊中的 st 功能哦～")
         return
@@ -635,18 +719,6 @@ async def handle_st(event: MessageEvent, args: Message = CommandArg()):
     existing_skills_str = get_character_skills(conn, user_id, character_id)
     existing_skills = eval(existing_skills_str) if existing_skills_str else {}
 
-    # 从输入文本解析技能数据
-    location = args.extract_plain_text()
-    skills_regex = re.findall(r'([\u4e00-\u9fa5a-zA-Z]+)(-?\d+)', location)
-    new_skills = {skill[0]: int(skill[1]) for skill in skills_regex}
-
-    # 将新的技能数据加到现有技能数据上
-    for skill, value in new_skills.items():
-        if skill in existing_skills:
-            existing_skills[skill] += value
-        else:
-            existing_skills[skill] = value
-
     args_text = args.extract_plain_text().split()
     if not args_text:
         await st.send(f"{user_name}阁下，参数不能为空哦～")
@@ -654,92 +726,91 @@ async def handle_st(event: MessageEvent, args: Message = CommandArg()):
 
     cmd = args_text[0]
     rest_args = ' '.join(args_text[1:])
+    SYNONYMS = coc_skills_SYMONYS() if rule == "coc" else {}  # 根据规则区分同义词
 
-    properties = get_character_properties(conn, user_id, character_id) or {}
-
-    if cmd in ('del', 'clr', 'show'):
-        if cmd == 'del':
-            prop_name = rest_args.strip()
-            if prop_name in properties:
-                del properties[prop_name]
-                await st.send(f"{user_name}阁下，已删除属性{prop_name}～")
-            else:
-                await st.send(f"{user_name}阁下，没有找到属性{prop_name}哦～")
-        elif cmd == 'clr':
-            properties = {}
-            await st.send(f"{user_name}阁下，所有属性已清空～")
-        elif cmd == 'show':
-            prop_name = rest_args.strip() if rest_args.strip() else None
-            if not prop_name:
-                filtered_props = {}
-                for key, value in properties.items():
-                    if value >= 20:
-                        comp_key = SYNONYMS.get(key, key)
-                        if comp_key not in filtered_props:
-                            filtered_props[comp_key] = value
-
-                props = ''.join([f'{k}：{v}' for k, v in filtered_props.items()])
-                await st.send(f"{user_name}阁下的所有属性如下：\n{props}")
-            else:
-                if prop_name in SYNONYMS:
-                    prop_name = SYNONYMS[prop_name]
-                if prop_name in properties:
-                    await st.send(f"{user_name}阁下，属性{prop_name}的值是：{properties[prop_name]}")
-    else:
-        try:
-            properties = get_character_skills(conn, user_id, character_id)
-            properties = eval(properties)
-        except Exception as e:
-            pass
-
-        # 支持骰子运算
-        match = re.match(r'([^\d+-/*]+)([+-/*])(\d+[dD]\d+|\d+)', cmd + rest_args)
-        if not match:
+    if rule == "coc":
+        if cmd in ('del', 'clr', 'show'):
+            # 处理COC规则下的各种命令
+            if cmd == 'del':
+                prop_name = rest_args.strip()
+                if prop_name in existing_skills:
+                    del existing_skills[prop_name]
+                    await st.send(f"{user_name}阁下，已删除属性{prop_name}～")
+                else:
+                    await st.send(f"{user_name}阁下，没有找到属性{prop_name}哦～")
+            elif cmd == 'clr':
+                existing_skills = {}
+                await st.send(f"{user_name}阁下，所有属性已清空～")
+            elif cmd == 'show':
+                prop_name = rest_args.strip() if rest_args.strip() else None
+                if not prop_name:
+                    filtered_props = []
+                    for key, value in existing_skills.items():
+                        if value >= 20:
+                            comp_key = SYNONYMS.get(key, key)
+                            if comp_key not in filtered_props:
+                                filtered_props.append(f'{comp_key}：{value}')
+                    props = '\n'.join(filtered_props)
+                    await st.send(f"{user_name}阁下的所有属性如下：\n{props}")
+                else:
+                    if prop_name in SYNONYMS:
+                        prop_name = SYNONYMS[prop_name]
+                    if prop_name in existing_skills:
+                        await st.send(f"{user_name}阁下，属性{prop_name}的值是：{existing_skills[prop_name]}")
+        else:
             # 更新数据库中的角色技能数据
+            skills_regex = re.findall(r'([\u4e00-\u9fa5a-zA-Z]+)(-?\d+)', rest_args)
+            new_skills = {skill[0]: int(skill[1]) for skill in skills_regex}
+            for skill, value in new_skills.items():
+                if skill in existing_skills:
+                    existing_skills[skill] += value
+                else:
+                    existing_skills[skill] = value
             update_character_skills(conn, user_id, character_id, str(existing_skills))
             await st.send(f"{user_name}阁下，技能导入完成啦～")
-            return
-
-        prop_name = match.group(1).strip()  # 去除空格
-        operator = match.group(2)
-        value_expr = match.group(3)
-
-        if prop_name in SYNONYMS:
-            prop_name = SYNONYMS[prop_name]
-
-        current_value = int(properties.get(prop_name, 0))
-
-        if 'd' in value_expr or 'D' in value_expr:
-            formula, dice_result = roll_dice(value_expr)
-            if dice_result is None:
-                await st.send(f"{user_name}阁下，骰子表达式错误，请检查输入的格式～")
-                return
-            dice_value = dice_result
+    elif rule == "fu":
+        if cmd in ('del', 'clr', 'show'):
+            if cmd == 'del':
+                prop_name = rest_args.strip()
+                if prop_name in existing_skills:
+                    del existing_skills[prop_name]
+                    await st.send(f"{user_name}阁下，已删除属性{prop_name}～")
+                else:
+                    await st.send(f"{user_name}阁下，没有找到属性{prop_name}哦～")
+            elif cmd == 'clr':
+                existing_skills = {}
+                await st.send(f"{user_name}阁下，所有属性已清空～")
+            elif cmd == 'show':
+                #await st.send(str(existing_skills))
+                prop_name = rest_args.strip() if rest_args.strip() else None
+                if not prop_name:
+                    props = []
+                    for key, value in existing_skills.items():
+                        props.append(f'{key}：{value}')
+                    await st.send(f"{user_name}阁下的所有属性如下：\n{' '.join(props)}")
+                else:
+                    if prop_name in existing_skills:
+                        await st.send(f"{user_name}阁下，属性{prop_name}的值是：{existing_skills[prop_name]}")
         else:
-            dice_value = int(value_expr)
+            # 从输入文本解析技能数据和武器信息
+            location = args.extract_plain_text()
+            # 正则表达式匹配
+            skills = r"([^\d]+)(d\d+\+?\d*)"
+            pattern_weapon = r"\[([^\]]+)\]"
+            skills_pattern = re.findall(skills, location)
+            result = {key: value for key, value in skills_pattern}
+            weapons_match = re.search(pattern_weapon, location)
+            if weapons_match:
+                weapons = weapons_match.group(1).split(',')
+                result["武器"] = [weapon.strip() for weapon in weapons]
+            # 更新数据库并显示
+            await st.send(f"{user_name}阁下，技能导入完成啦～")
+            update_character_skills(conn, user_id, character_id, str(result))
 
-        new_value = current_value
-        if operator == '+':
-            new_value = current_value + dice_value
-        elif operator == '-':
-            new_value = current_value - dice_value
-        elif operator == '*':
-            new_value = current_value * dice_value
-        elif operator == '/':
-            new_value = current_value // dice_value  # 整除
+    elif rule == "pokemon":
 
-        # 确保新值不会溢出
-        new_value = max(min(new_value, 2 ** 31 - 1), -(2 ** 31))
-
-        properties[prop_name] = new_value
-        await st.send(f"{user_name}阁下，属性{prop_name}更新成功～ 当前值为：{properties[prop_name]}")
-        # 更新属性
-        update_character_skills(conn, user_id, character_id, str(properties))
-        return
-
-    # 更新数据库中的角色技能数据
-    update_character_skills(conn, user_id, character_id, str(existing_skills))
-    #await st.send(f"{user_name}阁下，技能导入完成啦～")
+            # 处理Pokemon规则下的技能导入
+        pass  # 你可以在这里添加Pokemon规则下的技能导入处理逻辑
 
 '''
 玩家信息与角色卡代码簇-结束
