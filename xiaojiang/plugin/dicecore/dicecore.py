@@ -210,7 +210,7 @@ traits_rules = {
             "雇佣兵", "厨师", "指挥官","狙击手", "运动员", "治疗师", "恶魔猎人", "恶煞"
         ]
 '''
-
+'''
 def roll_dice(command, advantage=0):
     """
     处理骰子roll点的函数，默认为1d100
@@ -238,29 +238,80 @@ def roll_dice(command, advantage=0):
         total = sum(dice_results)
         formula = dice_str
 
-        operator_part = re.findall(r'[+\-*/]?\d+', command[dice_part.end():])
+        #operator_part = re.findall(r'\d*d\d+|[+\-*/\d]+', command[dice_part.end():])
+        operator_part = re.findall(r'[+\-*/]|\d*d\d+', command[dice_part.end():])
+        print(operator_part)
+        sub_result=0
         for op in operator_part:
-            symbol = op[0] if not op[0].isdigit() else '+'
-            number = int(op if symbol == '+' else op[1:])
+            if 'd' in op:
+                sub_result, sub_total = roll_dice(op)
+                op_res = sub_total
+                formula += f'[{sub_result}]'
+            else:
+                symbol = op[0]
+                number = sub_result
+                if symbol == '+':
+                    total += number
+                    formula += f'+{number}'
+                elif symbol == '-':
+                    total -= number
+                    formula += f'-{number}'
+                elif symbol == '*':
+                    total *= number
+                    formula += f'*{number}'
+                elif symbol == '/':
+                    total //= number
+                    formula += f'/{number}'
 
-            if symbol == '+':
-                total += number
-                formula += f"+{number}"
-            elif symbol == '-':
-                total -= number
-                formula += f"-{number}"
-            elif symbol == '*':
-                total *= number
-                formula += f"*{number}"
-            elif symbol == '/':
-                total //= number
-                formula += f"/{number}"
-
-        formula += f"={total}"
+        formula += f'={total}'
         return formula, total
 
     return f'{dice_str}+[{ones}]={total}', total
+'''
 
+
+def roll_dice(command, advantage=0):
+    """
+    处理骰子roll点的函数，默认为1d100
+    """
+
+    def roll_single_dice(command):
+        dice_part = re.match(r'(\d*)[dD](\d+)', command)
+        if not dice_part:
+            return None, "Invalid dice command"
+
+        count = int(dice_part.group(1)) if dice_part.group(1) else 1
+        sides = int(dice_part.group(2))
+
+        dice_results = [random.randint(1, sides) for _ in range(count)]
+        total = sum(dice_results)
+        dice_str = "[" + "]+[".join(map(str, dice_results)) + "]"
+        return dice_str, total
+
+    operator_part = re.findall(r'[+\-*/]|\d*d\d+', command)
+
+    total = 0
+    formula = ""
+    current_op = "+"
+
+    for item in operator_part:
+        if re.match(r'\d*d\d+', item):
+            sub_result, sub_total = roll_single_dice(item)
+            formula += f'{current_op}{sub_result}'
+
+            if current_op == "+":
+                total += sub_total
+            elif current_op == "-":
+                total -= sub_total
+            elif current_op == "*":
+                total *= sub_total
+            elif current_op == "/":
+                total //= sub_total
+        else:
+            current_op = item
+
+    formula += f'={total}'
+    return formula, total
 
 def generate_coc_character():
     character = {
