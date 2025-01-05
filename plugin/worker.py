@@ -48,7 +48,7 @@ terminal_handle=on_command('cmd')
 @terminal_handle.handle()
 async def terminal_message(event: MessageEvent,args: Message = CommandArg()):
     user_id= event.user_id
-    if str(user_id) not in ["815290790","3334279102"]:
+    if str(user_id) not in []:
         await terminal_handle.send("你不是主人！不允许使用终端模式！")
     else:
         if location := args.extract_plain_text():
